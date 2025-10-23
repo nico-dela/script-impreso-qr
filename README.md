@@ -19,7 +19,7 @@ La pieza funciona simultáneamente como:
 
 ---
 
-## ⚙️ Cómo usar
+## ⚙️ ¿Cómo usar?
 
 1. Abrir el archivo (`qr_print_a0.html`) en un navegador moderno, preferentemente Google Chrome.
 2. Esperar a que se generen las 500 páginas (esto puede tardar).
@@ -37,4 +37,4 @@ Los valores se definen en la hoja de estilo:
 --page-h-mm: 210;    /* alto A4 landscape en mm */
 --pages-count: 500;  /* número de hojas (resma completa) */
 --qr-mm: 50;         /* tamaño del QR en mm */
---band-fraction: 0.12; /* proporción de hojas con cartela/poema */
+--band-fraction: 0.12; /* proporción de hojas con cartela */
