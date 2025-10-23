@@ -26,7 +26,7 @@ La pieza funciona simultáneamente como:
 3. Imprimir contenido generado (Ctrl + P) en **A4 horizontal (landscape)**, **escala 100%**, sin márgenes adicionales.
 4. Cada página contendrá:
    - Una cuadrícula de códigos QR únicos (≈ 50 mm c/u).
-   - Una banda inferior con información o texto poético.
+   - Una banda inferior con información.
 
 ### Parámetros principales
 
