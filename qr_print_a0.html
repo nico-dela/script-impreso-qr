@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>QR Resma A4 — Landscape (500 hojas) — con cartelas</title>
+    <style>
+      :root {
+        --page-w-mm: 297; /* A4 landscape width mm */
+        --page-h-mm: 210; /* A4 landscape height mm */
+        --pad-mm: 8; /* margen de página (mm) */
+        --footer-band-mm: 40; /* banda inferior reservada (mm) — aumenté a 40 para cartela/poema cómodos */
+        --qr-mm: 50; /* tamaño QR en mm (ajustable: 50-60 recomendado) */
+        --gap-mm: 4; /* gap entre QRs en mm */
+        --qr-margin-modules: 6; /* quiet zone interno del QR (API) */
+        --qr-image-size-px: 1500; /* px pedido a la API (suficiente para A4) */
+        --pages-count: 500; /* 1 resma = 500 hojas */
+        --band-fraction: 0.12; /* fracción de hojas que tendrán la cartela/poema */
+      }
+
+      /* imprimir en A4 landscape */
+      @page {
+        size: A4 landscape;
+        margin: 0;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: #fff;
+        font-family: Arial, Helvetica, sans-serif;
+        color: #111;
+      }
+
+      /* Cada "page" corresponde a una hoja A4 landscape */
+      .page {
+        width: calc(var(--page-w-mm) * 1mm);
+        height: calc(var(--page-h-mm) * 1mm);
+        box-sizing: border-box;
+        padding: calc(var(--pad-mm) * 1mm);
+        position: relative;
+        page-break-after: always;
+        overflow: hidden;
+        background: white;
+      }
+
+      .canvas {
+        /* área útil para QRs: arriba del footer/band */
+        width: calc(100% - 0mm);
+        height: calc(100% - calc(var(--footer-band-mm) * 1mm));
+        position: relative;
+      }
+
+      /* footer textual / banda inferior (NO se dibujan QRs aquí) */
+      .band {
+        position: absolute;
+        left: calc(var(--pad-mm) * 1mm);
+        right: calc(var(--pad-mm) * 1mm);
+        bottom: calc(var(--pad-mm) * 1mm);
+        height: calc(var(--footer-band-mm) * 1mm);
+        box-sizing: border-box;
+        display: flex;
+        gap: 12mm;
+        padding: 6mm 8mm;
+        align-items: flex-start;
+        justify-content: flex-start;
+        background: white;
+      }
+
+      .cartela {
+        flex: 1 1 60%;
+        font-family: "Courier New", monospace;
+        font-size: 8.5pt;
+        line-height: 1.15;
+        color: #111;
+      }
+      .poema {
+        flex: 0 0 40%;
+        color: #9b0000;
+        font-family: "Courier New", monospace;
+        font-size: 9pt;
+        line-height: 1.15;
+        white-space: pre-wrap;
+      }
+
+      /* QR cell — posicionado absolute usando mm en estilos inline */
+      .cell {
+        position: absolute;
+        width: calc(var(--qr-mm) * 1mm);
+        height: calc(var(--qr-mm) * 1mm);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: white;
+        box-sizing: border-box;
+      }
+
+      .cell img {
+        width: 100%;
+        height: 100%;
+        display: block;
+        object-fit: contain;
+        image-rendering: crisp-edges;
+      }
+
+      /* small footer meta when band is not used (kept in .band area) */
+      .meta {
+        font-family: "Courier New", monospace;
+        font-size: 8pt;
+        color: #333;
+      }
+
+      /* Aviso en pantalla */
+      .notice {
+        position: fixed;
+        right: 12px;
+        bottom: 12px;
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 8px 10px;
+        border-radius: 6px;
+        font-size: 13px;
+        z-index: 9999;
+      }
+
+      @media print {
+        .notice {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="container"></div>
+    <div class="notice" id="notice" style="display: none">
+      Generando páginas... (esto puede tardar)
+    </div>
+
+    <script>
+      (function () {
+        // -----------------------
+        // URLs: todas las que me pasaste (copiadas tal cual) + links faltantes añadidos
+        // -----------------------
+        const urls = [
+          // Álbumes en youtube
+          "https://youtube.com/playlist?list=PLCeJy5MptJ4RZWmiq_ARhB8RZ_R9X87Hd&feature=shared",
+          "https://youtube.com/playlist?list=PLCeJy5MptJ4QlaqmOaVZdvGV964Fp55GY&feature=shared",
+          "https://youtu.be/7jHI_PDh19E?feature=shared",
+          "https://youtube.com/playlist?list=PLn4tIG1iX8-yJJdbpaRN3jTJy9jUKLyyv&feature=shared",
+          "https://youtu.be/uLttQvbXJgQ?feature=shared",
+          "https://youtube.com/playlist?list=PLn4tIG1iX8-zVf4Hrm9g2XJ_gl7Dn9E7t&feature=shared",
+          "https://youtube.com/playlist?list=PLn4tIG1iX8-xIp4Vc6YCdCQP0hq-2WdLv&feature=shared",
+          "https://youtube.com/playlist?list=PLzfI0EuktVuCHyA37QGbNnoOirWuCBiOj&feature=shared",
+          "https://youtube.com/playlist?list=OLAK5uy_kRjPwt-Jbgk5JLRrphO-JfirBIboEWrPI&feature=shared",
+          "https://youtu.be/3gYkm9hUE9c?feature=shared",
+
+          // Sesiones en Youtube
+          "https://youtu.be/BJu6nE7Q9zI?feature=shared",
+          "https://youtu.be/egiJJs6YcNk?feature=shared",
+          "https://youtube.com/playlist?list=PLCeJy5MptJ4RHEjXogCtEE9hxEpZSMeSr&feature=shared",
+          "https://youtube.com/playlist?list=PLCeJy5MptJ4TM1SpukK3oht5s58FxZJCV&feature=shared",
+          "https://youtube.com/playlist?list=PLCeJy5MptJ4QHl4z13LUp8Lmk3Hvl-6Io&feature=shared",
+
+          // Otros contenidos audiovisuales
+          "https://youtube.com/playlist?list=PLCeJy5MptJ4TWxuDioyRhSHYsZ1buJaI7&feature=shared",
+          "https://youtube.com/playlist?list=PLCeJy5MptJ4S2sacNONCmM0rJ1HvkLbt4&feature=shared",
+          "https://youtu.be/7XszEz_-Lw0?feature=shared",
+          "https://youtu.be/V_NcNKeVFmI?feature=shared",
+          "https://www.youtube.com/watch?v=4AtvQzqkmDw",
+          "https://www.youtube.com/watch?v=qoGe4z_TbFc",
+          "https://www.youtube.com/watch?v=y8Xu1DrKf44",
+          "https://www.youtube.com/watch?v=mLzLO5DDiug",
+          "https://www.youtube.com/watch?v=ThymvvLziQQ",
+          "https://www.youtube.com/watch?v=JXDxe7Ejz2o",
+          "https://www.youtube.com/watch?v=eFTXpxJtNis",
+          "https://www.youtube.com/watch?v=B6aryGSh3rg",
+
+          // Canales Youtube y otros
+          "https://youtube.com/@lacasamutante7513?feature=shared",
+          "https://youtube.com/@irmanas-wi9zg?feature=shared",
+          "https://youtube.com/@maizenaok?feature=shared",
+          "https://youtube.com/@nubila5910?feature=shared",
+          "https://youtube.com/@lavaandina5566?feature=shared",
+          "https://youtube.com/@hechizoanimalbanda?feature=shared",
+          "https://youtu.be/kV2CQWAUbgw?si=YOPWiqQimNoZtELy",
+          "https://youtube.com/playlist?list=OLAK5uy_lPHUuoaa84xcngjP2zrkmis8QJ2-ESJZE&si=uxB23eY5zQUGZAlM",
+          "https://youtube.com/channel/UCBqn0TfPORVJZsgBlLq9dyg?feature=shared",
+          "https://youtube.com/@aracelibonfigli?feature=shared",
+          "https://youtube.com/@mateogenca2368?feature=shared",
+
+          // Bandcamp (añadidos)
+          "https://psieledas.bandcamp.com/album/psieledas",
+          "https://psieledas.bandcamp.com/album/paisajes-en-gotas",
+          "https://psieledas.bandcamp.com/album/apariencias-implosivas",
+          "https://psieledas.bandcamp.com/album/la-solucion-de-infinitos-umbrales-en-mis-ojos",
+          "https://psieledas.bandcamp.com/album/evidentes-rastros-de-un-patio-habitado",
+          "https://psieledas.bandcamp.com/track/la-epopeya-de-hakea-laurina",
+          "https://psieledas.bandcamp.com/track/p-ramo",
+          "https://psieledas.bandcamp.com/album/archivos-olvidados-de-2016",
+          "https://psieledas.bandcamp.com/album/sato-vol-1",
+          "https://psieledas.bandcamp.com/album/sato-vol-2",
+          "https://fasma.bandcamp.com/album/fuegodoro-vol-1",
+          "https://fasma.bandcamp.com/album/fuegodoro-vol-2",
+          "https://maizena.bandcamp.com/track/colores",
+          "https://maizenaok.bandcamp.com/album/8-bit-vol-i",
+          "https://nubila.bandcamp.com/album/nebulosa",
+
+          // Instagram reel (añadido)
+          "https://www.instagram.com/reel/DPy5rS9jn_h/?igsh=M2dpbjFsNWphYjBs",
+
+          // Revistas / Substack (añadidos)
+          "https://revistavereda.substack.com/p/la-tormenta-de-santa-rosa-los-gritos",
+          "https://revistavereda.substack.com/p/censura-previa-en-la-era-de-los-omnipotentes",
+          "https://revistavereda.substack.com/p/que-lugar-tenemos-en-el-underground",
+          "https://revistavereda.substack.com/p/sobre-lapachos-la-cordoba-universitaria",
+          "https://revistavereda.substack.com/p/por-que-grabamos-sesiones-audiovisuales",
+          "https://revistavereda.substack.com/p/nunca-dejes-de-mirar",
+
+          // Repositorio del script (Github)
+          "https://github.com/nico-dela/script-impreso-qr",
+        ];
+
+        // -----------------------
+        // Config (read from CSS root too)
+        // -----------------------
+        const pageWmm = 297;
+        const pageHmm = 210;
+        const padmm =
+          parseFloat(
+            getComputedStyle(document.documentElement).getPropertyValue(
+              "--pad-mm"
+            )
+          ) || 8;
+        const footerBandMm =
+          parseFloat(
+            getComputedStyle(document.documentElement).getPropertyValue(
+              "--footer-band-mm"
+            )
+          ) || 40;
+        const qrmm =
+          parseFloat(
+            getComputedStyle(document.documentElement).getPropertyValue(
+              "--qr-mm"
+            )
+          ) || 50;
+        const gapmm =
+          parseFloat(
+            getComputedStyle(document.documentElement).getPropertyValue(
+              "--gap-mm"
+            )
+          ) || 4;
+        const qrImagePx =
+          parseFloat(
+            getComputedStyle(document.documentElement).getPropertyValue(
+              "--qr-image-size-px"
+            )
+          ) || 1500;
+        const qrMarginModules =
+          parseFloat(
+            getComputedStyle(document.documentElement).getPropertyValue(
+              "--qr-margin-modules"
+            )
+          ) || 6;
+        const pagesCount =
+          parseInt(
+            getComputedStyle(document.documentElement).getPropertyValue(
+              "--pages-count"
+            )
+          ) || 500;
+        const bandFraction =
+          parseFloat(
+            getComputedStyle(document.documentElement).getPropertyValue(
+              "--band-fraction"
+            )
+          ) || 0.12;
+
+        const container = document.getElementById("container");
+        const notice = document.getElementById("notice");
+
+        // Helper: shuffle array copy
+        function shuffle(arr) {
+          const a = arr.slice();
+          for (let i = a.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [a[i], a[j]] = [a[j], a[i]];
+          }
+          return a;
+        }
+
+        // QR generator URL builder
+        function qrSrcFor(url) {
+          return `https://api.qrserver.com/v1/create-qr-code/?size=${qrImagePx}x${qrImagePx}&margin=${qrMarginModules}&ecc=H&data=${encodeURIComponent(
+            url
+          )}`;
+        }
+
+        // Usable area in mm inside each page (for QR placement)
+        const usableWmm = pageWmm - 2 * padmm;
+        const usableHmm = pageHmm - 2 * padmm - footerBandMm;
+
+        // slots (cols x rows) for a regular grid
+        const cols = Math.max(
+          1,
+          Math.floor((usableWmm + gapmm) / (qrmm + gapmm))
+        );
+        const rows = Math.max(
+          1,
+          Math.floor((usableHmm + gapmm) / (qrmm + gapmm))
+        );
+        const slotsPerPage = cols * rows;
+
+        // Build a deterministic-ish list of page indices that will include the cartela/poema
+        const bandCount = Math.max(1, Math.round(pagesCount * bandFraction));
+        const bandPages = new Set();
+        const step = Math.max(1, Math.floor(pagesCount / bandCount));
+        for (let i = 0; i < bandCount; i++) {
+          const base =
+            i * step + Math.floor(Math.random() * Math.max(1, step - 1));
+          bandPages.add(Math.min(pagesCount - 1, base));
+        }
+
+        // Prepare a long sequence of urls shuffled so each page gets "random" values but all URLs appear
+        function* urlStream() {
+          while (true) {
+            const s = shuffle(urls);
+            for (const u of s) yield u;
+          }
+        }
+        const stream = urlStream();
+
+        // Create pages
+        for (let p = 0; p < pagesCount; p++) {
+          const page = document.createElement("div");
+          page.className = "page";
+
+          const canvas = document.createElement("div");
+          canvas.className = "canvas";
+
+          const band = document.createElement("div");
+          band.className = "band";
+
+          const includeBand = bandPages.has(p);
+
+          if (includeBand) {
+            const cartelaDiv = document.createElement("div");
+            cartelaDiv.className = "cartela";
+            cartelaDiv.innerHTML = `<strong>script impreso() / Interfaz de papel (2025)</strong><br><br>
+Instalación colectiva. Papel, tinta, código QR, luz, dispositivos digitales.<br><br>
+
+Esta instalación traduce un script —un conjunto de instrucciones digitales— al espacio físico. Los códigos QR, dispuestos sobre papel, conforman una interfaz análoga: una página web expandida en el plano de la realidad. Cada escaneo activa una conexión, un fragmento del archivo vivo de La Casa Mutante entre 2020 y 2025. El visitante es parte del sistema: su cuerpo ejecuta la acción que el código espera.`;
+            const poemaDiv = document.createElement("div");
+            poemaDiv.className = "poema";
+            poemaDiv.textContent = `Este muro es un código abierto. No guarda información, permite ejecutarla. Cada cuadrado negro es un pulso, una llamada al servidor de la memoria colectiva un camino o URL a donde están guardados muchas de nuestras obras. En el delay entre el escaneo y la carga, ocurre la obra.`;
+            band.appendChild(cartelaDiv);
+            band.appendChild(poemaDiv);
+          } else {
+            const metaDiv = document.createElement("div");
+            metaDiv.className = "cartela";
+            metaDiv.innerHTML = `<div class="meta">script impreso() — hoja ${
+              p + 1
+            } / ${pagesCount}</div><div style="height:6mm"></div><div style="font-size:8pt;color:#666">Imprimir A4 landscape, escala 100%. QR ≈ ${qrmm} mm; gap ${gapmm} mm.</div>`;
+            const poemPlaceholder = document.createElement("div");
+            poemPlaceholder.className = "poema";
+            poemPlaceholder.textContent = ` `; // empty to keep layout
+            band.appendChild(metaDiv);
+            band.appendChild(poemPlaceholder);
+          }
+
+          const patterns = ["grid", "wave", "edificios", "disperso"];
+          const pattern = patterns[p % patterns.length];
+
+          const slotPositions = [];
+          const gridWidthMm = cols * qrmm + (cols - 1) * gapmm;
+          const gridHeightMm = rows * qrmm + (rows - 1) * gapmm;
+          const offsetX = padmm + Math.max(0, (usableWmm - gridWidthMm) / 2);
+          const offsetY = padmm + Math.max(0, (usableHmm - gridHeightMm) / 2);
+
+          for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+              const x = offsetX + c * (qrmm + gapmm);
+              const y = offsetY + r * (qrmm + gapmm);
+              slotPositions.push({ c, r, x, y });
+            }
+          }
+
+          let placements = [];
+          if (pattern === "grid") {
+            const shuffledSlots = shuffle(slotPositions);
+            for (let i = 0; i < shuffledSlots.length; i++) {
+              const s = shuffledSlots[i];
+              placements.push({ x: s.x, y: s.y, url: stream.next().value });
+            }
+          } else if (pattern === "wave") {
+            const amp = qrmm * 0.8;
+            const freq = (2 * Math.PI) / (Math.max(1, cols) / 2);
+            for (const s of slotPositions) {
+              const shift = Math.sin(s.c * freq + p * 0.3) * amp;
+              placements.push({
+                x: s.x,
+                y: s.y + shift,
+                url: stream.next().value,
+              });
+            }
+          } else if (pattern === "edificios") {
+            const heights = [];
+            for (let c = 0; c < cols; c++) {
+              heights[c] = Math.max(
+                1,
+                Math.floor(rows * (0.55 + 0.45 * Math.random()))
+              );
+            }
+            for (const s of slotPositions) {
+              const col = s.c;
+              const rowIndexFromBottom = rows - 1 - s.r;
+              if (rowIndexFromBottom < heights[col]) {
+                const nx =
+                  s.x + (Math.random() - 0.5) * Math.min(2, gapmm * 0.4);
+                const ny =
+                  s.y + (Math.random() - 0.5) * Math.min(2, gapmm * 0.4);
+                placements.push({ x: nx, y: ny, url: stream.next().value });
+              }
+            }
+          } else {
+            const occupancy = 0.75 + 0.25 * Math.random(); // 0.75..1.0 occupancy
+            const count = Math.max(
+              1,
+              Math.floor(slotPositions.length * occupancy)
+            );
+            const subset = shuffle(slotPositions).slice(0, count);
+            for (const s of subset) {
+              const jitterX =
+                (Math.random() - 0.5) * Math.min(gapmm * 0.6, qrmm * 0.12);
+              const jitterY =
+                (Math.random() - 0.5) * Math.min(gapmm * 0.6, qrmm * 0.12);
+              placements.push({
+                x: s.x + jitterX,
+                y: s.y + jitterY,
+                url: stream.next().value,
+              });
+            }
+          }
+
+          for (const pc of placements) {
+            const div = document.createElement("div");
+            div.className = "cell";
+            div.style.left = `${pc.x}mm`;
+            div.style.top = `${pc.y}mm`;
+
+            const img = document.createElement("img");
+            img.decoding = "sync";
+            img.src = qrSrcFor(pc.url);
+            img.alt = "QR";
+            img.onerror = function () {
+              this.style.opacity = 0.5;
+            };
+
+            div.appendChild(img);
+            canvas.appendChild(div);
+          }
+
+          page.appendChild(canvas);
+          page.appendChild(band);
+          container.appendChild(page);
+        }
+      })();
+    </script>
+  </body>
+</html>
