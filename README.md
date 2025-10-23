@@ -19,7 +19,7 @@ La pieza funciona simultáneamente como:
 
 ---
 
-## ⚙️ Uso técnico
+## ⚙️ Cómo usar
 
 1. Abrir el archivo (`qr_print_a0.html`) en un navegador moderno, preferentemente Google Chrome.
 2. Esperar a que se generen las 500 páginas (esto puede tardar).
