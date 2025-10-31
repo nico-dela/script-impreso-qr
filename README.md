@@ -9,7 +9,7 @@ Cada QR enlaza a fragmentos de archivos audiovisuales, sesiones y publicaciones 
 
 ## 🌐 Descripción
 
-El archivo [`qr_print_a0.html`](./qr_print_a0.html) traduce un conjunto de URLs a un entorno físico, creando una “resma digital impresa”.  
+El archivo [`qr_print_a4.html`](./qr_print_a4.html) traduce un conjunto de URLs a un entorno físico, creando una “resma digital impresa”.  
 Cada hoja contiene una cuadrícula de códigos QR dispuestos según patrones aleatorios (“grid”, “wave”, “edificios”, “disperso”), y una fracción de las páginas incluye cartela.
 
 La pieza funciona simultáneamente como:
@@ -21,7 +21,7 @@ La pieza funciona simultáneamente como:
 
 ## ⚙️ ¿Cómo usar?
 
-1. Abrir el archivo (`qr_print_a0.html`) en un navegador moderno, preferentemente Google Chrome.
+1. Abrir el archivo (`qr_print_a4.html`) en un navegador moderno, preferentemente Google Chrome.
 2. Esperar a que se generen las 500 páginas (esto puede tardar).
 3. Imprimir contenido generado (Ctrl + P) en **A4 horizontal (landscape)**, **escala 100%**, sin márgenes adicionales.
 4. Cada página contendrá:
